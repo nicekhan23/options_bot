@@ -2,8 +2,52 @@ import pandas as pd
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from src.db.models import Settings
+from src.db.models import SessionLocal, Settings, OptionSnapshot
+import config
 
 logger.add("logs/signals.log", rotation="1 MB", retention="7 days", level="INFO")
+
+def calculate_changes(df: pd.DataFrame):
+    """Рассчитывает изменения volume, OI и IV относительно предыдущего снимка"""
+    if df.empty:
+        return df
+    
+    session = SessionLocal()
+    
+    # Инициализируем колонки изменений нулями
+    df['volume_change'] = 0.0
+    df['oi_change'] = 0
+    df['iv_change'] = 0.0
+    
+    for idx, row in df.iterrows():
+        # Получаем предыдущий снимок для этого опциона
+        prev_snapshot = session.query(OptionSnapshot).filter(
+            OptionSnapshot.ticker == row['ticker'],
+            OptionSnapshot.option_type == row['option_type'],
+            OptionSnapshot.strike == row['strike'],
+            OptionSnapshot.expiration == row['expiration']
+        ).order_by(OptionSnapshot.snapshot_time.desc()).offset(1).first()
+        
+        if prev_snapshot:
+            # Расчёт изменения объёма
+            if prev_snapshot.volume and prev_snapshot.volume > 0 and row.get('volume'):
+                df.at[idx, 'volume_change'] = (
+                    (row['volume'] - prev_snapshot.volume) / prev_snapshot.volume * 100
+                )
+            
+            # Расчёт изменения открытого интереса
+            if prev_snapshot.open_interest is not None and row.get('open_interest') is not None:
+                df.at[idx, 'oi_change'] = row['open_interest'] - prev_snapshot.open_interest
+            
+            # Расчёт изменения IV
+            if prev_snapshot.implied_volatility and row.get('implied_volatility'):
+                df.at[idx, 'iv_change'] = (
+                    row['implied_volatility'] - prev_snapshot.implied_volatility
+                )
+    
+    session.close()
+    logger.info(f"Calculated changes for {len(df)} options")
+    return df
 
 def detect_volume_spike(df: pd.DataFrame, k: float = 3.0):
     """
@@ -36,16 +80,18 @@ def detect_iv_increase(df: pd.DataFrame, threshold: float = 0.1):
     return iv_alerts.drop(columns=['avg_iv', 'iv_increase'])
 
 def filter_by_expiration(df: pd.DataFrame, days: int = 7):
-    """
-    Фильтрует опционы по ближайшей дате экспирации
-    df: DataFrame с колонкой 'expiration' (строка YYYY-MM-DD или datetime)
-    days: максимальное количество дней до экспирации
-    """
+    """Фильтрует опционы по ближайшей дате экспирации"""
     if df.empty or 'expiration' not in df.columns:
         return pd.DataFrame()
 
-    today = datetime.now(timezone.utc)()
+    # Используем timezone-naive datetime для совместимости с pandas
+    today = datetime.now()
     df['expiration_date'] = pd.to_datetime(df['expiration'], errors='coerce')
+    
+    # Убираем timezone из expiration_date, если она есть
+    if df['expiration_date'].dt.tz is not None:
+        df['expiration_date'] = df['expiration_date'].dt.tz_localize(None)
+    
     filtered = df[df['expiration_date'] <= today + timedelta(days=days)]
     logger.info(f"Options filtered by expiration <= {days} days: {len(filtered)}")
     return filtered.drop(columns=['expiration_date'])
@@ -136,14 +182,20 @@ def detect_unusual_pcr(pcr_df: pd.DataFrame, bearish_threshold=1.5, bullish_thre
     logger.info(f"Unusual PCR detected: {len(unusual)} signals")
     return unusual
 
-def generate_signals(df: pd.DataFrame, volume_k=3, iv_threshold=0.1, exp_days=7):
-    """
-    Основная функция: объединяет все фильтры и возвращает итоговые сигналы
-    """
+def generate_signals(df: pd.DataFrame, volume_k=None, iv_threshold=None, exp_days=None):
+    """Основная функция: объединяет все фильтры и возвращает итоговые сигналы"""
     if df.empty:
         logger.info("No data to generate signals")
-        return pd.DataFrame(), pd.DataFrame()  # Возвращаем два DataFrame
-
+        return pd.DataFrame(), pd.DataFrame()
+    
+    # Загрузка настроек из config или параметров
+    volume_k = volume_k or config.DEFAULT_VOLUME_SPIKE_K
+    iv_threshold = iv_threshold or config.DEFAULT_IV_THRESHOLD
+    exp_days = exp_days or config.DEFAULT_EXPIRATION_DAYS
+    
+    # ДОБАВИТЬ: Расчёт изменений
+    df = calculate_changes(df)
+    
     # Существующие сигналы
     volume_spikes = detect_volume_spike(df, k=volume_k)
     iv_alerts = detect_iv_increase(df, threshold=iv_threshold)

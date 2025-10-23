@@ -60,7 +60,7 @@ class PutCallRatio(Base):
     pcr_volume = Column(Float)  # Put/Call Ratio по объёму
     pcr_oi = Column(Float)  # Put/Call Ratio по открытому интересу
     signal_type = Column(String)  # BULLISH / BEARISH / NEUTRAL
-    calculated_at = Column(DateTime, default=datetime.utcnow)   
+    calculated_at = Column(DateTime, default=datetime.now(timezone.utc))   
     
 # Добавить новую таблицу после SignalLog
 class Settings(Base):
@@ -77,7 +77,20 @@ class Subscriber(Base):
     user_id = Column(Integer, unique=True, index=True)  # Telegram user ID
     username = Column(String, nullable=True)
     subscribed = Column(Boolean, default=True)
-    subscribed_at = Column(DateTime, default=datetime.utcnow)
+    subscribed_at = Column(DateTime, default=datetime.now(timezone.utc))
+    
+class OptionSnapshot(Base):
+    __tablename__ = "option_snapshots"
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    option_type = Column(String)
+    strike = Column(Float)
+    expiration = Column(String)
+    volume = Column(Integer)
+    open_interest = Column(Integer)
+    implied_volatility = Column(Float)
+    last_price = Column(Float)
+    snapshot_time = Column(DateTime, default=datetime.now(timezone.utc), index=True)
 
 # Функция для создания всех таблиц
 def init_db():

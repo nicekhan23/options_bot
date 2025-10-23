@@ -10,7 +10,8 @@ from loguru import logger
 from src.db.models import SessionLocal, Ticker, SignalLog
 from src.db.models import Subscriber
 from src.db.models import PutCallRatio
-
+import config
+from datetime import datetime, timezone
 
 import os
 from dotenv import load_dotenv
@@ -33,7 +34,6 @@ dp = Dispatcher()
 
 logger.add("logs/bot.log", rotation="1 MB", retention="7 days", level="INFO")
 
-# Добавить после определения dp
 async def send_signal_to_subscribers(signal_data: dict):
     """Отправляет сигнал всем подписчикам"""
     session = SessionLocal()
@@ -44,17 +44,20 @@ async def send_signal_to_subscribers(signal_data: dict):
         logger.info("No active subscribers")
         return
     
-    # Форматирование сигнала
+    # Форматирование сигнала с улучшенным выводом
+    volume_change_emoji = "📈" if signal_data.get('volume_change', 0) > 0 else "📉"
+    iv_emoji = "🔥" if signal_data.get('iv_change', 0) > 0.05 else "📊"
+    
     text = (
         f"🚨 <b>Unusual Options Activity Detected</b>\n\n"
         f"<b>Ticker:</b> {signal_data['ticker']}\n"
-        f"<b>Type:</b> {signal_data['option_type']} | <b>Strike:</b> {signal_data['strike']} | <b>Exp:</b> {signal_data['expiration']}\n"
-        f"<b>Volume:</b> {signal_data.get('volume', 'N/A')} (+{signal_data.get('volume_change', 0):.1f}%)\n"
-        f"<b>IV:</b> {signal_data.get('implied_volatility', 0)*100:.1f}% (↑{signal_data.get('iv_change', 0)*100:.1f}%)\n"
-        f"<b>OI Change:</b> +{signal_data.get('oi_change', 0)}\n"
+        f"<b>Type:</b> {signal_data['option_type']} | <b>Strike:</b> ${signal_data['strike']:.2f} | <b>Exp:</b> {signal_data['expiration']}\n"
+        f"{volume_change_emoji} <b>Volume:</b> {signal_data.get('volume', 0):,} (+{signal_data.get('volume_change', 0):.1f}%)\n"
+        f"{iv_emoji} <b>IV:</b> {signal_data.get('implied_volatility', 0)*100:.1f}% (Δ{signal_data.get('iv_change', 0)*100:+.1f}%)\n"
+        f"<b>OI Change:</b> {signal_data.get('oi_change', 0):+,}\n"
         f"<b>Last Price:</b> ${signal_data.get('last_price', 0):.2f}\n"
         f"<b>Underlying:</b> ${signal_data.get('underlying_price', 0):.2f}\n"
-        f"<b>Time:</b> {signal_data.get('signal_time', datetime.utcnow()).strftime('%Y-%m-%d %H:%M')} UTC\n\n"
+        f"<b>Time:</b> {signal_data.get('signal_time', datetime.now(timezone.utc)()).strftime('%Y-%m-%d %H:%M')} UTC\n\n"
         f"📊 <a href='https://finance.yahoo.com/quote/{signal_data['ticker']}/options'>View on Yahoo Finance</a>"
     )
     
@@ -65,7 +68,6 @@ async def send_signal_to_subscribers(signal_data: dict):
             logger.info(f"Signal sent to user {sub.user_id}")
         except Exception as e:
             logger.error(f"Failed to send signal to user {sub.user_id}: {e}")
-            # Если пользователь заблокировал бота, отписываем его
             if "bot was blocked" in str(e).lower():
                 session = SessionLocal()
                 subscriber = session.query(Subscriber).filter(Subscriber.user_id == sub.user_id).first()
@@ -73,6 +75,36 @@ async def send_signal_to_subscribers(signal_data: dict):
                     subscriber.subscribed = False
                     session.commit()
                 session.close()
+                
+async def send_pcr_signal_to_subscribers(pcr_row):
+    """Отправляет PCR сигнал всем подписчикам"""
+    session = SessionLocal()
+    subscribers = session.query(Subscriber).filter(Subscriber.subscribed == True).all()
+    session.close()
+    
+    if not subscribers:
+        return
+    
+    emoji = "🐻" if pcr_row['signal_type'] == 'BEARISH' else "🐂"
+    
+    text = (
+        f"{emoji} <b>Put/Call Ratio Alert</b>\n\n"
+        f"<b>Ticker:</b> {pcr_row['ticker']}\n"
+        f"<b>Signal:</b> {pcr_row['signal_type']}\n\n"
+        f"<b>Volume PCR:</b> {pcr_row['pcr_volume']:.2f}\n"
+        f"  • Calls: {int(pcr_row['call_volume']):,}\n"
+        f"  • Puts: {int(pcr_row['put_volume']):,}\n\n"
+        f"<b>OI PCR:</b> {pcr_row['pcr_oi']:.2f}\n"
+        f"  • Calls: {int(pcr_row['call_oi']):,}\n"
+        f"  • Puts: {int(pcr_row['put_oi']):,}\n\n"
+        f"📊 <a href='https://finance.yahoo.com/quote/{pcr_row['ticker']}/options'>View on Yahoo Finance</a>"
+    )
+    
+    for sub in subscribers:
+        try:
+            await bot.send_message(sub.user_id, text, disable_web_page_preview=True)
+        except Exception as e:
+            logger.error(f"Failed to send PCR signal to {sub.user_id}: {e}")
 
 # === Команда /start ===
 @dp.message(Command(commands=["start"]))

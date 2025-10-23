@@ -7,10 +7,13 @@ from src.data.parser import fetch_option_chain, parse_option_data, save_to_db
 from src.db.models import SessionLocal, Ticker, SignalLog  # <- здесь SignalLog правильно
 from src.signals.engine import generate_signals
 from src.bot.bot import send_signal_to_subscribers
+import config
+from src.db.models import SessionLocal, Ticker, SignalLog, PutCallRatio
+from src.bot.bot import send_signal_to_subscribers, send_pcr_signal_to_subscribers
 
 logger.add("logs/scheduler.log", rotation="1 MB", retention="7 days", level="INFO")
 
-UPDATE_INTERVAL_MIN = 10  # интервал обновления данных
+UPDATE_INTERVAL_MIN = config.UPDATE_INTERVAL_MIN
 
 async def update_options_data():
     """Получение и сохранение данных по всем тикерам"""
@@ -59,7 +62,7 @@ async def update_options_data():
                     'oi_change': row.get('open_interest', 0),
                     'last_price': row.get('last_price', 0),
                     'underlying_price': row.get('underlying_price', 0),
-                    'signal_time': datetime.utcnow()
+                    'signal_time': datetime.now(timezone.utc)
                 }
                 await send_signal_to_subscribers(signal_data)
                 
