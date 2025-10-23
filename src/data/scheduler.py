@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 from loguru import logger
 
@@ -12,7 +12,6 @@ logger.add("logs/scheduler.log", rotation="1 MB", retention="7 days", level="INF
 UPDATE_INTERVAL_MIN = 10  # интервал обновления данных
 
 async def update_options_data():
-    """Получение и сохранение данных по всем тикерам"""
     session = SessionLocal()
     tickers = session.query(Ticker).all()
     session.close()
@@ -22,8 +21,8 @@ async def update_options_data():
         return
 
     for t in tickers:
-        chain = fetch_option_chain(t.symbol)
-        df = parse_option_data(chain, t.symbol)
+        chain, underlying_price, exp_date = fetch_option_chain(t.symbol)  # ИЗМЕНИТЬ
+        df = parse_option_data(chain, t.symbol, exp_date, underlying_price)  # ИЗМЕНИТЬ
         save_to_db(df)
 
         # Генерация сигналов
@@ -50,9 +49,9 @@ async def start_scheduler():
     """Асинхронный планировщик для регулярного обновления данных"""
     logger.info("🚀 Scheduler started")
     while True:
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         logger.info(f"Обновление данных: {start_time}")
         await update_options_data()
-        elapsed = (datetime.utcnow() - start_time).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
         sleep_time = max(UPDATE_INTERVAL_MIN * 60 - elapsed, 0)
         await asyncio.sleep(sleep_time)

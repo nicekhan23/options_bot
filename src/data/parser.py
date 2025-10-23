@@ -1,26 +1,29 @@
 import yfinance as yf
 import pandas as pd
 from loguru import logger
-from datetime import datetime
+from datetime import datetime, timezone
 from src.db.models import SessionLocal, OptionData
 
 logger.add("logs/parser.log", rotation="1 MB", retention="7 days", level="INFO")
 
 def fetch_option_chain(ticker_symbol: str):
-    """Получить данные по опционам для одного тикера"""
     try:
         ticker = yf.Ticker(ticker_symbol)
         expirations = ticker.options
         if not expirations:
             logger.warning(f"Нет доступных дат экспирации для {ticker_symbol}")
             return None
-        # Берём ближайшую дату экспирации
+        
         opt_chain = ticker.option_chain(expirations[0])
+        
+        # ДОБАВИТЬ получение текущей цены актива
+        current_price = ticker.info.get('regularMarketPrice', ticker.info.get('currentPrice', None))
+        
         logger.info(f"Опционы для {ticker_symbol} получены (экспирация {expirations[0]})")
-        return opt_chain
+        return opt_chain, current_price, expirations[0]  # ИЗМЕНИТЬ возврат
     except Exception as e:
         logger.error(f"Ошибка при получении опционов {ticker_symbol}: {e}")
-        return None
+        return None, None, None
 
 def parse_option_data(opt_chain, ticker_symbol: str):
     """Преобразует цепочку опционов в DataFrame"""
@@ -37,7 +40,9 @@ def parse_option_data(opt_chain, ticker_symbol: str):
     
     # Добавляем тикер и время обновления
     df['ticker'] = ticker_symbol
-    df['updated_at'] = datetime.utcnow()
+    df['expiration'] = expiration_date
+    df['updated_at'] = datetime.now(timezone.utc)
+    df['underlying_price'] = underlying_price
     
     # Приведение столбцов к стандартному виду
     df = df.rename(columns={

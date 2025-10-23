@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker
-from datetime import datetime
+from datetime import datetime, timezone
 
 # База SQLite
 DATABASE_URL = "sqlite:///./options_data.db"
@@ -15,7 +15,7 @@ class Ticker(Base):
     __tablename__ = "tickers"
     id = Column(Integer, primary_key=True, index=True)
     symbol = Column(String, unique=True, index=True)
-    added_at = Column(DateTime, default=datetime.utcnow)
+    added_at = Column(DateTime, default=datetime.now(timezone.utc))
 
 # Таблица для данных по опционам
 class OptionData(Base):
@@ -32,7 +32,7 @@ class OptionData(Base):
     volume = Column(Integer)
     open_interest = Column(Integer)
     underlying_price = Column(Float)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc))
 
 # Таблица для логов сигналов
 class SignalLog(Base):
@@ -45,8 +45,16 @@ class SignalLog(Base):
     volume_change = Column(Float)
     iv_change = Column(Float)
     oi_change = Column(Integer)
-    signal_time = Column(DateTime, default=datetime.utcnow)
+    signal_time = Column(DateTime, default=datetime.now(timezone.utc))
     source = Column(String)
+    
+# Добавить новую таблицу после SignalLog
+class Settings(Base):
+    __tablename__ = "settings"
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True)
+    value = Column(Float)
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
 # Функция для создания всех таблиц
 def init_db():

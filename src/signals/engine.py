@@ -1,6 +1,7 @@
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
+from src.db.models import Settings
 
 logger.add("logs/signals.log", rotation="1 MB", retention="7 days", level="INFO")
 
@@ -43,11 +44,27 @@ def filter_by_expiration(df: pd.DataFrame, days: int = 7):
     if df.empty or 'expiration' not in df.columns:
         return pd.DataFrame()
 
-    today = datetime.utcnow()
+    today = datetime.now(timezone.utc)()
     df['expiration_date'] = pd.to_datetime(df['expiration'], errors='coerce')
     filtered = df[df['expiration_date'] <= today + timedelta(days=days)]
     logger.info(f"Options filtered by expiration <= {days} days: {len(filtered)}")
     return filtered.drop(columns=['expiration_date'])
+
+def get_setting(session, key: str, default: float):
+    """Получить значение настройки из БД"""
+    setting = session.query(Settings).filter(Settings.key == key).first()
+    return setting.value if setting else default
+
+def set_setting(session, key: str, value: float):
+    """Сохранить значение настройки в БД"""
+    setting = session.query(Settings).filter(Settings.key == key).first()
+    if setting:
+        setting.value = value
+        setting.updated_at = datetime.now(timezone.utc)()
+    else:
+        setting = Settings(key=key, value=value)
+        session.add(setting)
+    session.commit()
 
 def generate_signals(df: pd.DataFrame, volume_k=3, iv_threshold=0.1, exp_days=7):
     """
