@@ -48,6 +48,20 @@ class SignalLog(Base):
     signal_time = Column(DateTime, default=datetime.now(timezone.utc))
     source = Column(String)
     
+# Добавить после SignalLog
+class PutCallRatio(Base):
+    __tablename__ = "put_call_ratios"
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    call_volume = Column(Integer)
+    put_volume = Column(Integer)
+    call_oi = Column(Integer)
+    put_oi = Column(Integer)
+    pcr_volume = Column(Float)  # Put/Call Ratio по объёму
+    pcr_oi = Column(Float)  # Put/Call Ratio по открытому интересу
+    signal_type = Column(String)  # BULLISH / BEARISH / NEUTRAL
+    calculated_at = Column(DateTime, default=datetime.utcnow)   
+    
 # Добавить новую таблицу после SignalLog
 class Settings(Base):
     __tablename__ = "settings"
@@ -55,6 +69,15 @@ class Settings(Base):
     key = Column(String, unique=True, index=True)
     value = Column(Float)
     updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    
+# Добавить после таблицы Settings
+class Subscriber(Base):
+    __tablename__ = "subscribers"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, unique=True, index=True)  # Telegram user ID
+    username = Column(String, nullable=True)
+    subscribed = Column(Boolean, default=True)
+    subscribed_at = Column(DateTime, default=datetime.utcnow)
 
 # Функция для создания всех таблиц
 def init_db():

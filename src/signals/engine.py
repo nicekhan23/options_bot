@@ -65,6 +65,76 @@ def set_setting(session, key: str, value: float):
         setting = Settings(key=key, value=value)
         session.add(setting)
     session.commit()
+    
+def calculate_put_call_ratio(df: pd.DataFrame):
+    """
+    Рассчитывает Put/Call Ratio по объёму и открытому интересу
+    Высокий PCR (>1.0) = медвежий сигнал
+    Низкий PCR (<0.7) = бычий сигнал
+    """
+    if df.empty:
+        return pd.DataFrame()
+    
+    grouped = df.groupby(['ticker', 'option_type']).agg({
+        'volume': 'sum',
+        'open_interest': 'sum'
+    }).reset_index()
+    
+    results = []
+    
+    for ticker in grouped['ticker'].unique():
+        ticker_data = grouped[grouped['ticker'] == ticker]
+        
+        call_data = ticker_data[ticker_data['option_type'] == 'CALL']
+        put_data = ticker_data[ticker_data['option_type'] == 'PUT']
+        
+        call_volume = call_data['volume'].sum() if not call_data.empty else 0
+        put_volume = put_data['volume'].sum() if not put_data.empty else 0
+        
+        call_oi = call_data['open_interest'].sum() if not call_data.empty else 0
+        put_oi = put_data['open_interest'].sum() if not put_data.empty else 0
+        
+        # Расчёт Put/Call Ratio
+        pcr_volume = put_volume / call_volume if call_volume > 0 else 0
+        pcr_oi = put_oi / call_oi if call_oi > 0 else 0
+        
+        results.append({
+            'ticker': ticker,
+            'call_volume': call_volume,
+            'put_volume': put_volume,
+            'call_oi': call_oi,
+            'put_oi': put_oi,
+            'pcr_volume': pcr_volume,
+            'pcr_oi': pcr_oi,
+            'total_volume': call_volume + put_volume,
+            'total_oi': call_oi + put_oi
+        })
+    
+    pcr_df = pd.DataFrame(results)
+    logger.info(f"Put/Call ratios calculated for {len(pcr_df)} tickers")
+    return pcr_df
+
+def detect_unusual_pcr(pcr_df: pd.DataFrame, bearish_threshold=1.5, bullish_threshold=0.5):
+    """
+    Выявляет необычные значения Put/Call Ratio
+    bearish_threshold: PCR выше этого значения = сильный медвежий сигнал
+    bullish_threshold: PCR ниже этого значения = сильный бычий сигнал
+    """
+    if pcr_df.empty:
+        return pd.DataFrame()
+    
+    unusual = pcr_df[
+        (pcr_df['pcr_volume'] > bearish_threshold) | 
+        (pcr_df['pcr_volume'] < bullish_threshold)
+    ].copy()
+    
+    # Определение типа сигнала
+    unusual['signal_type'] = unusual['pcr_volume'].apply(
+        lambda x: 'BEARISH' if x > bearish_threshold else 'BULLISH'
+    )
+    
+    logger.info(f"Unusual PCR detected: {len(unusual)} signals")
+    return unusual
 
 def generate_signals(df: pd.DataFrame, volume_k=3, iv_threshold=0.1, exp_days=7):
     """
@@ -72,12 +142,17 @@ def generate_signals(df: pd.DataFrame, volume_k=3, iv_threshold=0.1, exp_days=7)
     """
     if df.empty:
         logger.info("No data to generate signals")
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()  # Возвращаем два DataFrame
 
+    # Существующие сигналы
     volume_spikes = detect_volume_spike(df, k=volume_k)
     iv_alerts = detect_iv_increase(df, threshold=iv_threshold)
     combined = pd.concat([volume_spikes, iv_alerts]).drop_duplicates()
     final_signals = filter_by_expiration(combined, days=exp_days)
     
-    logger.info(f"Total signals generated: {len(final_signals)}")
-    return final_signals
+    # Новые сигналы Put/Call Ratio
+    pcr_data = calculate_put_call_ratio(df)
+    pcr_signals = detect_unusual_pcr(pcr_data)
+    
+    logger.info(f"Total option signals: {len(final_signals)}, PCR signals: {len(pcr_signals)}")
+    return final_signals, pcr_signals
