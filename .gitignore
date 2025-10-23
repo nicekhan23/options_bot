@@ -92,6 +92,8 @@ config.yaml
 
 # === Specific to this project ===
 # Ignore local data and private configs
+!src/data/
+!src/data/**
 src/data/tmp/
 src/data/__pycache__/
 src/db/tmp/
