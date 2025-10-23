@@ -1,2 +1,102 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# === Virtual Environment ===
 venv/
 .env
+.env.bak
+.venv/
+ENV/
+env/
+
+# === IDEs & Editors ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === Logs & Debug ===
+*.log
+logs/
+bot.log
+debug.log
+
+# === Bytecode & Build ===
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+*.manifest
+*.spec
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# === Unit Tests ===
+.coverage
+.tox/
+.nox/
+pytest_cache/
+htmlcov/
+*.cover
+coverage.xml
+
+# === Database & Data Files ===
+*.db
+*.sqlite3
+*.sqlite
+data/
+__data__/
+
+# === Jupyter & Reports ===
+.ipynb_checkpoints
+*.ipynb
+*.pdf
+*.csv
+*.xlsx
+
+# === Temporary or Backup Files ===
+*.tmp
+*.bak
+*.old
+*.orig
+
+# === Cache Directories ===
+.cache/
+.mypy_cache/
+.pytest_cache/
+__pypackages__/
+
+# === Deployment / Docker (optional) ===
+*.pid
+*.sock
+*.tar
+*.gz
+*.zip
+
+# === Local Scripts or Secrets ===
+config.yaml
+*.secret
+*.key
+*.pem
+
+# === Specific to this project ===
+# Ignore local data and private configs
+src/data/tmp/
+src/data/__pycache__/
+src/db/tmp/
+src/bot/__pycache__/
+
+# Ignore local test runs
+test_api.py
+tmp/

@@ -1,0 +1,54 @@
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean
+from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime
+
+# База SQLite
+DATABASE_URL = "sqlite:///./options_data.db"
+
+engine = create_engine(DATABASE_URL, echo=False, future=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+Base = declarative_base()
+
+# Таблица для отслеживаемых тикеров
+class Ticker(Base):
+    __tablename__ = "tickers"
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, unique=True, index=True)
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+# Таблица для данных по опционам
+class OptionData(Base):
+    __tablename__ = "options_data"
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    option_type = Column(String)  # Call / Put
+    strike = Column(Float)
+    expiration = Column(String)
+    last_price = Column(Float)
+    bid = Column(Float)
+    ask = Column(Float)
+    implied_volatility = Column(Float)
+    volume = Column(Integer)
+    open_interest = Column(Integer)
+    underlying_price = Column(Float)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+# Таблица для логов сигналов
+class SignalLog(Base):
+    __tablename__ = "signals_log"
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String)
+    option_type = Column(String)
+    strike = Column(Float)
+    expiration = Column(String)
+    volume_change = Column(Float)
+    iv_change = Column(Float)
+    oi_change = Column(Integer)
+    signal_time = Column(DateTime, default=datetime.utcnow)
+    source = Column(String)
+
+# Функция для создания всех таблиц
+def init_db():
+    Base.metadata.create_all(bind=engine)
+    print("✅ База данных и таблицы созданы")
