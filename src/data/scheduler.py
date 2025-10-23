@@ -29,6 +29,8 @@ async def update_options_data():
         chain, underlying_price, exp_date = fetch_option_chain(t.symbol)
         df = parse_option_data(chain, t.symbol, exp_date, underlying_price)
         save_to_db(df)
+        
+        await asyncio.sleep(config.RATE_LIMIT_DELAY)
 
         # Генерация сигналов (теперь возвращает два DataFrame)
         signals_df, pcr_signals = generate_signals(df)

@@ -47,6 +47,16 @@ def parse_option_data(opt_chain, ticker_symbol: str, expiration_date: str, under
     puts['option_type'] = 'PUT'
     
     df = pd.concat([calls, puts], ignore_index=True)
+    df = df.fillna({
+        'volume': 0,
+        'open_interest': 0,
+        'implied_volatility': 0,
+        'last_price': 0,
+        'bid': 0,
+        'ask': 0
+    })
+
+
     
     # Добавляем метаданные
     df['ticker'] = ticker_symbol
