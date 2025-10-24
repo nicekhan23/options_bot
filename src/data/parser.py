@@ -4,7 +4,7 @@ from loguru import logger
 from datetime import datetime, timezone
 import time
 from src.db.models import SessionLocal, OptionData, OptionSnapshot
-import config
+import config.config as config
 
 logger.add("logs/parser.log", rotation=config.LOG_ROTATION, retention=config.LOG_RETENTION, level="INFO")
 

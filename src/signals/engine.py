@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from loguru import logger
 from src.db.models import Settings
 from src.db.models import SessionLocal, Settings, OptionSnapshot
-import config
+import config.config as config
 
 logger.add("logs/signals.log", rotation="1 MB", retention="7 days", level="INFO")
 

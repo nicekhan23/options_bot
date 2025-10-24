@@ -7,7 +7,7 @@ from src.data.parser import fetch_option_chain, parse_option_data, save_to_db
 from src.db.models import SessionLocal, Ticker, SignalLog  # <- здесь SignalLog правильно
 from src.signals.engine import generate_signals
 from src.bot.bot import send_signal_to_subscribers
-import config
+import config.config as config
 from src.db.models import SessionLocal, Ticker, SignalLog, PutCallRatio
 from src.bot.bot import send_signal_to_subscribers, send_pcr_signal_to_subscribers
 

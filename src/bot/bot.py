@@ -10,7 +10,7 @@ from loguru import logger
 from src.db.models import SessionLocal, Ticker, SignalLog
 from src.db.models import Subscriber
 from src.db.models import PutCallRatio
-import config
+import config.config as config
 from datetime import datetime, timezone
 
 import os
